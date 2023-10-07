@@ -1,0 +1,93 @@
+plugins {
+    id 'base'
+    id 'jacoco'
+}
+
+// Yes I could use the 'test-report-aggregation' plugin...
+['test', 'integrationTest'].each { taskName ->
+    tasks.register("${taskName}Report", TestReport) {
+        destinationDirectory = layout.buildDirectory.dir('reports/test')
+    }
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    pluginManager.withPlugin('java') {
+        apply plugin: 'jacoco'
+
+        testing {
+            suites {
+                test {
+                    useJUnitJupiter()
+                }
+                integrationTest(JvmTestSuite) {
+                    dependencies {
+                        implementation project()
+                    }
+
+                    targets.all {
+                        testTask.configure {
+                            shouldRunAfter test
+                        }
+                    }
+                }
+                configureEach {
+                    targets.all {
+                        testTask.configure() {
+                            finalizedBy rootProject.tasks.named("${name}Report", TestReport) {
+                                testResults.from owner.binaryResultsDirectory
+                            }
+                            finalizedBy ':jacocoMergedReport'
+                        }
+                    }
+                }
+            }
+        }
+
+        tasks.withType(JacocoReport).configureEach { enabled = false }
+
+        // This also fails
+//        tasks.withType(Test).configureEach {
+//            finalizedBy rootProject.tasks.named("${name}Report") {
+//                testResults.from owner.binaryResultsDirectory
+//            }
+//        }
+
+        // This does not, but creates tasks eagerly
+        //noinspection ConfigurationAvoidance
+//        tasks.withType(Test) {
+//            finalizedBy rootProject.tasks.named("${name}Report") {
+//                reportOn owner.binaryResultsDirectory
+//            }
+//        }
+    }
+}
+
+// Yes I could use the 'jacoco-report-aggregation' plugin...
+tasks.register('jacocoMergedReport', JacocoReport) {
+    subprojects {
+        pluginManager.withPlugin('jacoco') {
+            sourceSets sourceSets.main
+            executionData tasks.withType(Test)
+            // Workaround to fix the issue: (this causes `gw test` to execute task `integrationTest` as well)
+//            executionData files(tasks.withType(Test)).filter { it.name.endsWith('.exec') && it.exists() }
+//            mustRunAfter tasks.withType(Test)
+
+            // Alternatively the following resulted in an IO error: Unable to read `subproject1/build/test-results/test/binary`
+            // because it is a directory.
+//            def testTasksWithCoverage = ['test', 'integrationTest'].collect { tasks.named it }
+//            executionData testTasksWithCoverage
+//            mustRunAfter testTasksWithCoverage
+        }
+    }
+
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
