@@ -3,13 +3,6 @@ plugins {
     id 'jacoco'
 }
 
-// Yes I could use the 'test-report-aggregation' plugin...
-['test', 'integrationTest'].each { taskName ->
-    tasks.register("${taskName}Report", TestReport) {
-        destinationDirectory = layout.buildDirectory.dir("reports/${taskName}")
-    }
-}
-
 allprojects {
     repositories {
         mavenCentral()
@@ -65,6 +58,13 @@ subprojects {
 //                reportOn binaryResultsDirectory
 //            }
 //        }
+    }
+}
+
+// Yes I could use the 'test-report-aggregation' plugin...
+['test', 'integrationTest'].each { taskName ->
+    tasks.register("${taskName}Report", TestReport) {
+        destinationDirectory = layout.buildDirectory.dir("reports/${taskName}")
     }
 }
 
